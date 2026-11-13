@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RICE Prioritizer</title>
+<style>:root{--bg:#f7f7f5;--panel:#fff;--ink:#1c1c1a;--muted:#6b6b66;--line:#e3e3de;--accent:#3d5afe;--accent-ink:#fff;--good:#1a7f4b;--bad:#b3261e;--warn:#9a6700;--soft:#eef0ff;--radius:10px;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--panel:#1d1d1b;--ink:#ececE6;--muted:#9a9a93;--line:#30302c;--accent:#8c9eff;--accent-ink:#11122b;--good:#5fd39a;--bad:#ff8a80;--warn:#e3b341;--soft:#23264a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1080px;margin:0 auto;padding:28px 16px 64px}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:24px;margin:0;letter-spacing:-.01em}
+h2{font-size:15px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+p.lead{margin:4px 0 0;color:var(--muted);max-width:62ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.grid{display:grid;gap:16px}
+@media(min-width:820px){.cols-2{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:repeat(3,1fr)}.side{grid-template-columns:340px 1fr}}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{min-height:120px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.field{margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-weight:600;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.ghost{border-color:transparent;color:var(--muted);padding:4px 8px}
+button:disabled{opacity:.5;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td input{padding:5px 7px}
+.scroll{overflow-x:auto}
+.stat{font-size:28px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stat small{display:block;font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0}
+.muted{color:var(--muted)}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--accent)}
+.out{white-space:pre-wrap;word-wrap:break-word;font-size:14.5px;min-height:120px}
+.out.mono,code{font-family:var(--mono);font-size:13px}
+.note{font-size:13px;color:var(--muted)}
+footer{margin-top:28px;font-size:13px;color:var(--muted)}
+footer a{color:inherit}
+
+.bar{height:8px;border-radius:4px;background:var(--accent);min-width:2px}
+tr.top td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1>RICE Prioritizer</h1>
+      <p class="lead">Score features with RICE or ICE, and see the ranking update as you type. Your list is saved in this browser.</p>
+    </div>
+    <div class="row">
+      <select id="mode" aria-label="Scoring method" style="width:auto">
+        <option value="rice">RICE</option>
+        <option value="ice">ICE</option>
+      </select>
+      <button id="add" class="primary">Add feature</button>
+      <button id="csv">Export CSV</button>
+      <button id="reset" class="ghost">Reset</button>
+    </div>
+  </header>
+
+  <section class="panel scroll">
+    <table>
+      <thead id="head"></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p id="empty" class="note" hidden>No feature yet. Add one to start.</p>
+  </section>
+
+  <section class="panel">
+    <h2>How the score works</h2>
+    <p id="help" class="note" style="margin:0"></p>
+  </section>
+  <footer>MIT license · © 2026 Adrien Balcioglu · Runs entirely in your browser.</footer>
+</main>
+<script>
+const KEY = 'rice-prioritizer-v1';
+const IMPACTS = [[3, 'Massive'], [2, 'High'], [1, 'Medium'], [0.5, 'Low'], [0.25, 'Minimal']];
+const SAMPLE = [
+  { name: 'Onboarding checklist', reach: 4000, impact: 2, confidence: 80, effort: 3, ease: 6 },
+  { name: 'Slack integration', reach: 1200, impact: 1, confidence: 50, effort: 5, ease: 4 },
+  { name: 'Bulk CSV import', reach: 800, impact: 3, confidence: 90, effort: 2, ease: 8 },
+];
+const HELP = {
+  rice: 'RICE = Reach × Impact × Confidence ÷ Effort. Reach is the number of people affected per quarter. Impact goes from 0.25 (minimal) to 3 (massive). Confidence is a percentage. Effort is in person-months.',
+  ice: 'ICE = Impact × Confidence × Ease. Each one is a score from 1 to 10. Impact here uses the same 1 to 10 scale as the two others.',
+};
+
+let state = load();
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.items)) return s; } catch {}
+  return { mode: 'rice', items: structuredClone(SAMPLE) };
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+
+function score(item) {
+  if (state.mode === 'ice') return clamp(num(item.iceImpact ?? 5), 1, 10) * clamp(num(item.confidence) / 10, 1, 10) * clamp(num(item.ease ?? 5), 1, 10);
+  const effort = num(item.effort);
+  return effort > 0 ? num(item.reach) * num(item.impact) * (num(item.confidence) / 100) / effort : 0;
+}
+
+function render() {
+  const rice = state.mode === 'rice';
+  document.getElementById('mode').value = state.mode;
+  document.getElementById('help').textContent = HELP[state.mode];
+  document.getElementById('head').innerHTML = '<tr><th class="num">#</th><th style="min-width:200px">Feature</th>' +
+    (rice ? '<th>Reach</th><th>Impact</th><th>Confidence %</th><th>Effort</th>' : '<th>Impact (1-10)</th><th>Confidence %</th><th>Ease (1-10)</th>') +
+    '<th class="num">Score</th><th style="width:140px"></th><th></th></tr>';
+
+  const ranked = state.items.map((item, index) => ({ item, index, score: score(item) })).sort((a, b) => b.score - a.score);
+  const max = Math.max(1, ...ranked.map((r) => r.score));
+  const body = document.getElementById('rows');
+  body.innerHTML = '';
+  ranked.forEach((r, position) => {
+    const tr = document.createElement('tr');
+    if (position === 0 && r.score > 0) tr.className = 'top';
+    const cell = (html, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.innerHTML = html; tr.appendChild(td); return td; };
+    const field = (key, attrs = '') => `<input data-i="${r.index}" data-k="${key}" ${attrs}>`;
+    cell(String(position + 1), 'num');
+    cell(field('name', 'type="text" aria-label="Feature name"'));
+    if (rice) {
+      cell(field('reach', 'type="number" min="0" aria-label="Reach"'));
+      cell(`<select data-i="${r.index}" data-k="impact" aria-label="Impact">${IMPACTS.map(([v, l]) => `<option value="${v}">${l} (${v})</option>`).join('')}</select>`);
+      cell(field('confidence', 'type="number" min="0" max="100" aria-label="Confidence"'));
+      cell(field('effort', 'type="number" min="0" step="0.5" aria-label="Effort"'));
+    } else {
+      cell(field('iceImpact', 'type="number" min="1" max="10" aria-label="Impact"'));
+      cell(field('confidence', 'type="number" min="0" max="100" aria-label="Confidence"'));
+      cell(field('ease', 'type="number" min="1" max="10" aria-label="Ease"'));
+    }
+    cell(Math.round(r.score).toLocaleString('en-US'), 'num');
+    cell(`<div class="bar" style="width:${(r.score / max) * 100}%"></div>`);
+    cell(`<button class="ghost" data-del="${r.index}" aria-label="Delete feature">✕</button>`);
+    body.appendChild(tr);
+    // Values are set as properties, never as HTML, so any text is safe.
+    tr.querySelectorAll('[data-k]').forEach((el) => {
+      const k = el.dataset.k;
+      el.value = r.item[k] ?? (k === 'iceImpact' || k === 'ease' ? 5 : '');
+    });
+  });
+  document.getElementById('empty').hidden = state.items.length > 0;
+}
+
+document.getElementById('rows').addEventListener('change', (e) => {
+  const el = e.target.closest('[data-k]');
+  if (!el) return;
+  const item = state.items[+el.dataset.i];
+  item[el.dataset.k] = el.dataset.k === 'name' ? el.value : num(el.value);
+  save(); render();
+});
+document.getElementById('rows').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-del]');
+  if (!btn) return;
+  state.items.splice(+btn.dataset.del, 1);
+  save(); render();
+});
+document.getElementById('mode').addEventListener('change', (e) => { state.mode = e.target.value; save(); render(); });
+document.getElementById('add').addEventListener('click', () => {
+  state.items.push({ name: 'New feature', reach: 1000, impact: 1, confidence: 80, effort: 1, iceImpact: 5, ease: 5 });
+  save(); render();
+});
+document.getElementById('reset').addEventListener('click', () => {
+  if (!confirm('Replace your list with the sample data?')) return;
+  state = { mode: state.mode, items: structuredClone(SAMPLE) };
+  save(); render();
+});
+document.getElementById('csv').addEventListener('click', () => {
+  const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rice = state.mode === 'rice';
+  const header = rice ? ['Rank', 'Feature', 'Reach', 'Impact', 'Confidence %', 'Effort', 'RICE score'] : ['Rank', 'Feature', 'Impact', 'Confidence %', 'Ease', 'ICE score'];
+  const rows = state.items.map((item) => ({ item, s: score(item) })).sort((a, b) => b.s - a.s).map(({ item, s }, i) =>
+    rice ? [i + 1, item.name, item.reach, item.impact, item.confidence, item.effort, Math.round(s)]
+         : [i + 1, item.name, item.iceImpact ?? 5, item.confidence, item.ease ?? 5, Math.round(s)]);
+  const csv = [header, ...rows].map((r) => r.map(q).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `${state.mode}-prioritization.csv`; a.click(); URL.revokeObjectURL(a.href);
+});
+render();
+</script>
+</body>
+</html>
