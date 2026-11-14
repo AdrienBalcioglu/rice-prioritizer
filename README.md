@@ -1,8 +1,8 @@
 # RICE Prioritizer
 
 Score and rank features with RICE or ICE, in the browser.
-**[Try it live](https://adrienbalcioglu.github.io/rice-prioritizer/)**
 
+**[Website](https://adrienbalcioglu.github.io/rice-prioritizer/about.html)** · **[Open the app](https://adrienbalcioglu.github.io/rice-prioritizer/)**
 
 ## Features
 
