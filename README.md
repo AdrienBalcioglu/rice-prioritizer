@@ -2,7 +2,7 @@
 
 Score and rank features with RICE or ICE, in the browser.
 
-**[Website](https://adrienbalcioglu.github.io/rice-prioritizer/about.html)** · **[Open the app](https://adrienbalcioglu.github.io/rice-prioritizer/)**
+**[Website](https://eidoslab.fr/rice-prioritizer)** · **[Open the app](https://adrienbalcioglu.github.io/rice-prioritizer/)**
 
 ## Features
 
